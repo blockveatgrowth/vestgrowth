@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/increments/process",
+      "schedule": "40 23 * * *"
+    }
+  ]
+} 
