@@ -5,8 +5,9 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/options';
 import dbConnect from '@/lib/db';
 import { User } from '@/models/User';
 import { Transaction } from '@/models/Transaction';
+import { Settings } from '@/models/Settings';
 import { distributeReferralCommissions } from '@/lib/referralUtils';
-import { calculateDirectCommission } from '@/lib/planUtils';
+import { getPlanForAmount } from '@/lib/planUtils';
 
   export async function POST(request: NextRequest) {
     try {
@@ -51,55 +52,55 @@ import { calculateDirectCommission } from '@/lib/planUtils';
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Calculate welcome bonus (10% of deposit amount)
-    const welcomeBonus = user.hasReceivedWelcomeBonus ? 0 : transaction.amount * 0.1;
+    // Load platform settings for configurable bonuses
+    let settings = await Settings.findOne();
+    if (!settings) settings = await Settings.create({});
 
-    // Calculate direct commission based on plan
-    const { commission: directCommission, plan } = await calculateDirectCommission(transaction.amount, welcomeBonus > 0 ? 10 : -1);
+    const welcomeBonusPct = settings.welcomeBonusPercent ?? 10;
+    const directCommissionPct = settings.directCommissionPercent ?? 10;
 
-    // Update user's balance with deposit amount, welcome bonus, and direct commission
+    // Welcome bonus: only on first deposit
+    const welcomeBonus = user.hasReceivedWelcomeBonus ? 0 : (transaction.amount * welcomeBonusPct) / 100;
+
+    // Direct commission based on deposit amount
+    const directCommission = (transaction.amount * directCommissionPct) / 100;
+
+    // Find the plan for this deposit
+    const plan = await getPlanForAmount(transaction.amount);
+    if (plan && !transaction.planId) {
+      transaction.planId = plan._id;
+    }
+
+    // Add deposit + welcome bonus + direct commission to user balance
     const totalAddition = transaction.amount + welcomeBonus + directCommission;
     user.balance += totalAddition;
-    let directCommissionPercentage = -1;
-    
-    // Mark that user has received welcome bonus if this is their first deposit
-    if (!user.hasReceivedWelcomeBonus) {
+
+    if (!user.hasReceivedWelcomeBonus && welcomeBonus > 0) {
       user.hasReceivedWelcomeBonus = true;
-      directCommissionPercentage = 10;
     }
-    
     await user.save();
 
-    // Update transaction status and add bonus info
+    // Update transaction status
     transaction.status = 'approved';
     transaction.approvedBy = admin._id;
     transaction.approvedAt = new Date();
-    
-    const notes = [];
-    if (welcomeBonus > 0) {
-      notes.push(`Welcome bonus of $${welcomeBonus.toFixed(2)} added`);
-    }
-    if (directCommission > 0) {
-      notes.push(`Direct commission of $${directCommission.toFixed(2)} (${plan?.directCommissionPercentage}%) added`);
-    }
-    if (notes.length > 0) {
-      transaction.notes = notes.join('. ');
-    }
-    
+
+    const notes: string[] = [];
+    if (welcomeBonus > 0) notes.push(`Welcome bonus: $${welcomeBonus.toFixed(2)} (${welcomeBonusPct}%)`);
+    if (directCommission > 0) notes.push(`Direct commission: $${directCommission.toFixed(2)} (${directCommissionPct}%)`);
+    if (plan) notes.push(`Plan: ${plan.name}`);
+    if (notes.length > 0) transaction.notes = notes.join(' | ');
     await transaction.save();
 
-    // Process referral commissions
-    await distributeReferralCommissions(transaction.userId, transaction.amount, directCommissionPercentage);
+    // Distribute referral commissions through the 5-level network
+    await distributeReferralCommissions(transaction.userId, transaction.amount, directCommissionPct);
 
     return NextResponse.json({
       message: 'Deposit approved successfully',
       transaction,
       welcomeBonus,
       directCommission,
-      plan: plan ? {
-        name: plan.name,
-        directCommissionPercentage: plan.directCommissionPercentage,
-      } : null,
+      plan: plan ? { name: plan.name, directCommissionPercentage: directCommissionPct } : null,
     });
   } catch (error: unknown) {
     const err = error as Error;

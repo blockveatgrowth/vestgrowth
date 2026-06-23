@@ -8,23 +8,25 @@ export interface ISettings extends mongoose.Document {
     bep20: string;
   };
   // Bonus settings
-  welcomeBonus: number;        // Fixed $ amount for welcome bonus
-  referralBonus: number;       // % of first deposit given to referrer
+  welcomeBonus: number;            // Legacy fixed $ amount (kept for compat)
+  welcomeBonusPercent: number;     // % of deposit given as welcome bonus
+  directCommissionPercent: number; // % of deposit as direct commission on first deposit
+  referralBonus: number;           // % of deposit distributed across referral levels
   // Withdrawal settings
   withdrawalThreshold: number; // Minimum balance to withdraw
   // Trade simulation settings
-  tradeEnabled: boolean;       // Whether to auto-generate daily trades
-  tradeMinProfit: number;      // Min profit % on good days (default 4)
-  tradeMaxProfit: number;      // Max profit % on good days (default 8)
-  tradeMinLoss: number;        // Min loss % on loss days (default 3)
-  tradeMaxLoss: number;        // Max loss % on loss days (default 9)
-  tradeLossDaysPerWeek: number; // How many loss days per week (default 2)
+  tradeEnabled: boolean;
+  tradeMinProfit: number;
+  tradeMaxProfit: number;
+  tradeMinLoss: number;
+  tradeMaxLoss: number;
+  tradeLossDaysPerWeek: number;
   // Plan profit cut percentages (how much of trade profit goes to user)
   planProfitCuts: {
-    plan1: number; // e.g. 40
-    plan2: number; // e.g. 50
-    plan3: number; // e.g. 60
-    plan4: number; // e.g. 75
+    plan1: number; // 40%
+    plan2: number; // 50%
+    plan3: number; // 60%
+    plan4: number; // 75%
   };
   updatedAt: Date;
 }
@@ -37,6 +39,8 @@ const settingsSchema = new mongoose.Schema<ISettings>(
       bep20: { type: String, default: '0x4b47b65b4d19249930e30d4a9c18751f9b3dc8f1' },
     },
     welcomeBonus: { type: Number, default: 5 },
+    welcomeBonusPercent: { type: Number, default: 10 },
+    directCommissionPercent: { type: Number, default: 10 },
     referralBonus: { type: Number, default: 10 },
     withdrawalThreshold: { type: Number, default: 50 },
     tradeEnabled: { type: Boolean, default: true },

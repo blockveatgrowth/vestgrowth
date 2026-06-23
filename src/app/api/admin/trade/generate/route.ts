@@ -10,69 +10,83 @@ import { Transaction } from '@/models/Transaction';
 import { Profit } from '@/models/Increment';
 import { Plan } from '@/models/Plan';
 
-// Crypto pairs to use for simulation
-const CRYPTO_PAIRS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT'];
+// Crypto pairs mapping
+const CRYPTO_PAIRS: { id: string; pair: string }[] = [
+  { id: 'bitcoin', pair: 'BTC/USDT' },
+  { id: 'ethereum', pair: 'ETH/USDT' },
+  { id: 'binancecoin', pair: 'BNB/USDT' },
+  { id: 'solana', pair: 'SOL/USDT' },
+  { id: 'ripple', pair: 'XRP/USDT' },
+];
 
-// Fetch real-time price from CoinGecko (free, no API key needed)
-async function fetchCryptoPrice(pair: string): Promise<number> {
-  const coinMap: Record<string, string> = {
-    'BTC/USDT': 'bitcoin',
-    'ETH/USDT': 'ethereum',
-    'BNB/USDT': 'binancecoin',
-    'SOL/USDT': 'solana',
-  };
-  const coinId = coinMap[pair] || 'bitcoin';
+interface PriceRange {
+  high: number;
+  low: number;
+  current: number;
+}
+
+// Fetch real 24h high/low/current from CoinGecko markets endpoint (no API key needed)
+async function fetch24hPriceRange(coinId: string): Promise<PriceRange | null> {
   try {
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
-      { next: { revalidate: 0 } }
-    );
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinId}&order=market_cap_desc&per_page=1&page=1&sparkline=false`;
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return data[coinId]?.usd || 50000;
-  } catch {
-    // Fallback prices if API fails
-    const fallback: Record<string, number> = {
-      'BTC/USDT': 65000,
-      'ETH/USDT': 3500,
-      'BNB/USDT': 580,
-      'SOL/USDT': 150,
+    if (!Array.isArray(data) || !data.length) return null;
+    const coin = data[0];
+    return {
+      high: coin.high_24h as number,
+      low: coin.low_24h as number,
+      current: coin.current_price as number,
     };
-    return fallback[pair] || 50000;
+  } catch (err) {
+    console.error(`CoinGecko fetch error for ${coinId}:`, err);
+    return null;
   }
 }
 
-// Determine if today is a loss day based on weekly schedule
-function isLossDay(date: Date, lossDaysPerWeek: number): boolean {
-  // Use day of week to deterministically assign loss days
-  // Week starts Monday (1) to Sunday (0)
-  const dayOfWeek = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  // Loss days: if lossDaysPerWeek=2, use Wednesday(3) and Saturday(6)
-  const lossDays = [3, 6].slice(0, lossDaysPerWeek);
-  return lossDays.includes(dayOfWeek);
+// Fallback static ranges if CoinGecko is unavailable
+const FALLBACK_RANGES: Record<string, PriceRange> = {
+  bitcoin:     { high: 68000, low: 63000, current: 65500 },
+  ethereum:    { high: 3700,  low: 3400,  current: 3550  },
+  binancecoin: { high: 610,   low: 570,   current: 590   },
+  solana:      { high: 165,   low: 145,   current: 155   },
+  ripple:      { high: 0.62,  low: 0.54,  current: 0.58  },
+};
+
+function randomBetween(min: number, max: number): number {
+  return Math.random() * (max - min) + min;
 }
 
-// Generate a random float between min and max with 2 decimal places
-function randomBetween(min: number, max: number): number {
-  return Math.round((Math.random() * (max - min) + min) * 100) / 100;
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+// Determine if today is a loss day using a deterministic weekly schedule
+function isLossDay(date: Date, lossDaysPerWeek: number): boolean {
+  // Wednesday (3) and Saturday (6) are default loss days
+  const lossWeekdays = [3, 6, 2, 5, 1, 4, 0].slice(0, Math.min(lossDaysPerWeek, 6));
+  return lossWeekdays.includes(date.getDay());
 }
 
 export async function POST(request: Request) {
   try {
-    // Allow both admin session and cron secret
     const session = await getServerSession(authOptions);
     const body = await request.json().catch(() => ({}));
-    const cronSecret = body?.secret || request.headers.get('x-cron-secret');
-    
+    const cronSecret = (body as { secret?: string })?.secret || request.headers.get('x-cron-secret');
+
     const isAdmin = session?.user?.role === 'admin';
     const isCron = cronSecret === process.env.CRON_SECRET;
-    
+
     if (!isAdmin && !isCron) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await connectDB();
 
-    // Get settings
     let settings = await Settings.findOne();
     if (!settings) settings = await Settings.create({});
 
@@ -80,68 +94,87 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Trade generation is disabled' });
     }
 
-    // Check if today's trade already exists
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const existingTrade = await DailyTrade.findOne({
-      date: { $gte: today, $lt: tomorrow },
-    });
-
+    // Prevent duplicate trades
+    const existingTrade = await DailyTrade.findOne({ date: { $gte: today, $lt: tomorrow } });
     if (existingTrade) {
-      return NextResponse.json({
-        message: "Today's trade already generated",
-        trade: existingTrade,
-      });
+      return NextResponse.json({ message: "Today's trade already generated", trade: existingTrade });
     }
 
     // Pick a random crypto pair
-    const pair = CRYPTO_PAIRS[Math.floor(Math.random() * CRYPTO_PAIRS.length)];
-    const currentPrice = await fetchCryptoPrice(pair);
+    const chosen = CRYPTO_PAIRS[Math.floor(Math.random() * CRYPTO_PAIRS.length)];
 
-    // Determine profit or loss
-    const lossDay = isLossDay(today, settings.tradeLossDaysPerWeek);
-    let tradePercent: number;
-    let sellPrice: number;
-
-    if (lossDay) {
-      tradePercent = -randomBetween(settings.tradeMinLoss, settings.tradeMaxLoss);
-      sellPrice = Math.round(currentPrice * (1 + tradePercent / 100) * 100) / 100;
-    } else {
-      tradePercent = randomBetween(settings.tradeMinProfit, settings.tradeMaxProfit);
-      sellPrice = Math.round(currentPrice * (1 + tradePercent / 100) * 100) / 100;
+    // Fetch real 24h price range
+    let priceRange = await fetch24hPriceRange(chosen.id);
+    if (!priceRange || priceRange.high <= priceRange.low) {
+      priceRange = FALLBACK_RANGES[chosen.id] || FALLBACK_RANGES.bitcoin;
     }
 
-    // Save the daily trade
+    const { high, low } = priceRange;
+    const range = high - low;
+
+    const lossDay = isLossDay(today, settings.tradeLossDaysPerWeek);
+    let buyPrice: number;
+    let sellPrice: number;
+    let tradePercent: number;
+
+    if (lossDay) {
+      // Loss scenario: buy in the upper portion of the day's range, sell lower
+      // This simulates buying near the daily high and selling lower (realistic loss)
+      const buyFraction = randomBetween(0.55, 0.95); // buy in upper 45% of range
+      buyPrice = round4(low + range * buyFraction);
+
+      const lossPct = randomBetween(settings.tradeMinLoss, settings.tradeMaxLoss);
+      tradePercent = -round4(lossPct);
+
+      sellPrice = round4(buyPrice * (1 + tradePercent / 100));
+      // Clamp sell price so it doesn't go below the day's low
+      sellPrice = Math.max(round4(low * 0.99), sellPrice);
+
+      // Recalculate actual trade percent based on real prices
+      tradePercent = round4(((sellPrice - buyPrice) / buyPrice) * 100);
+    } else {
+      // Profit scenario: buy in the lower portion of the day's range, sell higher
+      // This simulates buying near the daily low and selling higher (realistic profit)
+      const buyFraction = randomBetween(0.02, 0.45); // buy in lower 45% of range
+      buyPrice = round4(low + range * buyFraction);
+
+      const profitPct = randomBetween(settings.tradeMinProfit, settings.tradeMaxProfit);
+      sellPrice = round4(buyPrice * (1 + profitPct / 100));
+
+      // Clamp sell price so it doesn't exceed the day's high
+      sellPrice = Math.min(round4(high * 1.005), sellPrice);
+
+      // Recalculate actual trade percent based on real prices
+      tradePercent = round4(((sellPrice - buyPrice) / buyPrice) * 100);
+    }
+
+    // Save the daily trade record
     const dailyTrade = await DailyTrade.create({
       date: today,
-      pair,
-      buyPrice: currentPrice,
+      pair: chosen.pair,
+      buyPrice,
       sellPrice,
       tradePercent,
       isProfit: !lossDay,
     });
 
-    // Now distribute profits to all users with active deposits
-    if (!lossDay) {
-      // Get all plans to determine profit cut
+    // Distribute profits to users on profit days
+    if (!lossDay && tradePercent > 0) {
       const plans = await Plan.find();
-      const planCuts: Record<string, number> = {
+      const planCutMap: Record<string, number> = {
         'Plan 1': settings.planProfitCuts.plan1,
         'Plan 2': settings.planProfitCuts.plan2,
         'Plan 3': settings.planProfitCuts.plan3,
         'Plan 4': settings.planProfitCuts.plan4,
       };
 
-      // Get all approved deposits
-      const approvedDeposits = await Transaction.find({
-        type: 'deposit',
-        status: 'approved',
-      }).populate('userId');
+      const approvedDeposits = await Transaction.find({ type: 'deposit', status: 'approved' });
 
-      // Group deposits by user
       const userDeposits: Record<string, { amount: number; planId: string; depositId: string }[]> = {};
       for (const deposit of approvedDeposits) {
         const uid = deposit.userId.toString();
@@ -153,21 +186,17 @@ export async function POST(request: Request) {
         });
       }
 
-      // For each user, calculate their daily profit
       for (const [userId, deposits] of Object.entries(userDeposits)) {
         for (const dep of deposits) {
-          // Find the plan for this deposit
           const plan = plans.find(p => p._id.toString() === dep.planId);
           const planName = plan?.name || 'Plan 1';
-          const profitCutPercent = planCuts[planName] || 40;
+          const profitCutPercent = planCutMap[planName] ?? 40;
 
-          // User profit = deposit * tradePercent% * profitCut%
+          // User profit = depositAmount × (tradePercent × profitCutPercent / 100) / 100
           const userProfitPercent = (tradePercent * profitCutPercent) / 100;
-          const userProfitAmount = Math.round((dep.amount * userProfitPercent) / 100 * 100) / 100;
-
+          const userProfitAmount = round4((dep.amount * userProfitPercent) / 100);
           if (userProfitAmount <= 0) continue;
 
-          // Check if profit already exists for this deposit today
           const existingProfit = await Profit.findOne({
             userId,
             depositId: dep.depositId,
@@ -189,7 +218,7 @@ export async function POST(request: Request) {
         }
       }
 
-      // Process all pending profits (add to user balances)
+      // Credit profits to user balances
       const pendingProfits = await Profit.find({
         status: 'completed',
         isAddedToBalance: false,
@@ -197,9 +226,7 @@ export async function POST(request: Request) {
       });
 
       for (const profit of pendingProfits) {
-        await User.findByIdAndUpdate(profit.userId, {
-          $inc: { balance: profit.amount },
-        });
+        await User.findByIdAndUpdate(profit.userId, { $inc: { balance: profit.amount } });
         profit.isAddedToBalance = true;
         await profit.save();
       }
@@ -208,7 +235,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       trade: dailyTrade,
-      message: `Trade generated: ${pair} ${tradePercent > 0 ? '+' : ''}${tradePercent}%`,
+      message: `Trade: ${chosen.pair} | Buy $${buyPrice} → Sell $${sellPrice} | ${tradePercent > 0 ? '+' : ''}${tradePercent}%`,
     });
   } catch (error) {
     console.error('Error generating trade:', error);
