@@ -15,8 +15,8 @@ const plans = [
     features: [
       "40% of daily trade profit",
       "$50 – $199 investment range",
-      "10% direct commission",
-      "5-level referral rewards",
+      "Multi-level referral rewards",
+      "Instant referral bonuses on deposits",
       "Real-time trade tracking",
       "24/7 Support",
     ],
@@ -33,8 +33,8 @@ const plans = [
     features: [
       "50% of daily trade profit",
       "$200 – $499 investment range",
-      "10% direct commission",
-      "5-level referral rewards",
+      "Multi-level referral rewards",
+      "Instant referral bonuses on deposits",
       "Real-time trade tracking",
       "Priority Support",
     ],
@@ -51,8 +51,8 @@ const plans = [
     features: [
       "60% of daily trade profit",
       "$500 – $1,499 investment range",
-      "10% direct commission",
-      "5-level referral rewards",
+      "Multi-level referral rewards",
+      "Instant referral bonuses on deposits",
       "Real-time trade tracking",
       "VIP Support",
     ],
@@ -69,8 +69,8 @@ const plans = [
     features: [
       "75% of daily trade profit",
       "$1,500 – $5,000 investment range",
-      "10% direct commission",
-      "5-level referral rewards",
+      "Multi-level referral rewards",
+      "Instant referral bonuses on deposits",
       "Real-time trade tracking",
       "Dedicated Account Manager",
     ],

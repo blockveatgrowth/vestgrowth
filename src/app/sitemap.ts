@@ -1,50 +1,15 @@
 import { MetadataRoute } from 'next';
 
-const siteUrl = process.env.NEXTAUTH_URL || 'https://vestgrowth.vercel.app';
+const siteUrl = process.env.NEXTAUTH_URL || 'https://investoboost.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  const now = new Date();
   return [
-    {
-      url: siteUrl,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 1,
-    },
-    {
-      url: `${siteUrl}/about`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${siteUrl}/faq`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.7,
-    },
-    {
-      url: `${siteUrl}/terms`,
-      lastModified: new Date(),
-      changeFrequency: 'yearly',
-      priority: 0.5,
-    },
-    {
-      url: `${siteUrl}/privacy`,
-      lastModified: new Date(),
-      changeFrequency: 'yearly',
-      priority: 0.5,
-    },
-    {
-      url: `${siteUrl}/auth/signin`,
-      lastModified: new Date(),
-      changeFrequency: 'yearly',
-      priority: 0.6,
-    },
-    {
-      url: `${siteUrl}/auth/signup`,
-      lastModified: new Date(),
-      changeFrequency: 'yearly',
-      priority: 0.9,
-    },
+    { url: siteUrl,                          lastModified: now, changeFrequency: 'daily',   priority: 1.0 },
+    { url: `${siteUrl}/auth/signup`,         lastModified: now, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${siteUrl}/auth/signin`,         lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${siteUrl}/#plans`,              lastModified: now, changeFrequency: 'weekly',  priority: 0.8 },
+    { url: `${siteUrl}/#features`,           lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${siteUrl}/#referral`,           lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
   ];
 }

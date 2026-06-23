@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next';
 
-const siteUrl = process.env.NEXTAUTH_URL || 'https://vestgrowth.vercel.app';
+const siteUrl = process.env.NEXTAUTH_URL || 'https://investoboost.com';
 
 export default function robots(): MetadataRoute.Robots {
   return {

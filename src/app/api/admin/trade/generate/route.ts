@@ -9,6 +9,17 @@ import { User } from '@/models/User';
 import { Transaction } from '@/models/Transaction';
 import { Profit } from '@/models/Increment';
 import { Plan } from '@/models/Plan';
+import Referral from '@/models/Referral';
+
+// Referral daily profit mirror rates per level
+// Each referrer earns X% of their referral's daily profit
+const REFERRAL_DAILY_RATES: Record<number, number> = {
+  1: 10, // Level 1 referrer gets 10% of referral's daily profit
+  2: 5,
+  3: 3,
+  4: 2,
+  5: 1,
+};
 
 // Crypto pairs mapping
 const CRYPTO_PAIRS: { id: string; pair: string }[] = [
@@ -186,6 +197,9 @@ export async function POST(request: Request) {
         });
       }
 
+      // Track per-user daily profit totals for referral mirror
+      const userDailyProfitTotals: Record<string, number> = {};
+
       for (const [userId, deposits] of Object.entries(userDeposits)) {
         for (const dep of deposits) {
           const plan = plans.find(p => p._id.toString() === dep.planId);
@@ -197,6 +211,7 @@ export async function POST(request: Request) {
           const userProfitAmount = round4((dep.amount * userProfitPercent) / 100);
           if (userProfitAmount <= 0) continue;
 
+          // Deduplicate: one profit record per user per deposit per day
           const existingProfit = await Profit.findOne({
             userId,
             depositId: dep.depositId,
@@ -214,21 +229,62 @@ export async function POST(request: Request) {
               status: 'completed',
               isAddedToBalance: false,
             });
+            // Accumulate for referral mirror
+            userDailyProfitTotals[userId] = (userDailyProfitTotals[userId] || 0) + userProfitAmount;
           }
         }
       }
 
-      // Credit profits to user balances
+      // Credit user profits to balances
       const pendingProfits = await Profit.find({
         status: 'completed',
         isAddedToBalance: false,
         date: { $gte: today, $lt: tomorrow },
+        profitType: 'daily',
       });
 
       for (const profit of pendingProfits) {
         await User.findByIdAndUpdate(profit.userId, { $inc: { balance: profit.amount } });
         profit.isAddedToBalance = true;
         await profit.save();
+      }
+
+      // ── Referral daily profit mirror ────────────────────────────────────────
+      // Each referrer earns a % of their referral's daily profit (10/5/3/2/1%)
+      for (const [userId, userDailyProfit] of Object.entries(userDailyProfitTotals)) {
+        if (userDailyProfit <= 0) continue;
+        const referrals = await Referral.find({ userId }).sort({ level: 1 });
+        for (const ref of referrals) {
+          const rate = REFERRAL_DAILY_RATES[ref.level] ?? 0;
+          if (rate <= 0) continue;
+          const mirrorAmount = round4((userDailyProfit * rate) / 100);
+          if (mirrorAmount <= 0) continue;
+          const todayKey = today.toISOString().split('T')[0];
+          const mirrorDepositId = `ref_mirror_${userId}_${todayKey}`;
+          const existingMirror = await Profit.findOne({
+            userId: ref.referrerId.toString(),
+            depositId: mirrorDepositId,
+            date: { $gte: today, $lt: tomorrow },
+            profitType: 'referral',
+          });
+          if (!existingMirror) {
+            await Profit.create({
+              userId: ref.referrerId,
+              depositId: mirrorDepositId,
+              amount: mirrorAmount,
+              date: today,
+              profitType: 'referral',
+              status: 'completed',
+              isAddedToBalance: true,
+            });
+            await User.findByIdAndUpdate(ref.referrerId, {
+              $inc: { balance: mirrorAmount, referralEarnings: mirrorAmount },
+            });
+            await Referral.findByIdAndUpdate(ref._id, {
+              $inc: { totalEarnings: mirrorAmount },
+            });
+          }
+        }
       }
     }
 
