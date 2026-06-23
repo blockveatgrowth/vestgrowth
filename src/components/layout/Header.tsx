@@ -60,7 +60,7 @@ export default function Header() {
     <header className="bg-[#0D1117] backdrop-blur supports-[backdrop-filter]:bg-[#0D1117]/60 sticky top-0 z-40 w-full border-b border-[#FFD700]/20">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center space-x-2">
+          <Link href={isAuthenticated ? "/dashboard" : "/"} className="flex items-center space-x-2">
             <div className="relative w-12 h-12 rounded-full overflow-hidden">
               <Image 
                 src="/images/logo.jpeg" 

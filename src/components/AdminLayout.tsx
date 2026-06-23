@@ -19,6 +19,8 @@ import {
   Menu,
   X,
   ArrowDown,
+  Settings,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { signOut } from "next-auth/react";
@@ -45,11 +47,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const navigation = [
-    { name: "Admin", href: "/admin", icon: LayoutDashboard },
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Admin Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Deposits", href: "/admin/transactions/deposits", icon: ArrowUpDown },
     { name: "Withdrawals", href: "/admin/transactions/withdrawals", icon: ArrowDown },
     { name: "Users", href: "/admin/users", icon: Users },
+    { name: "Platform Settings", href: "/admin/settings", icon: Settings },
+    { name: "User Dashboard", href: "/dashboard", icon: TrendingUp },
   ];
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);

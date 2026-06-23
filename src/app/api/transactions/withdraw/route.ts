@@ -6,6 +6,7 @@ import { User } from '@/models/User';
 import { Transaction } from '@/models/Transaction';
 import { Ticket } from '@/models/Ticket';
 import { Profit } from '@/models/Increment';
+import { Settings } from '@/models/Settings';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,14 +25,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (amount < 50) {
+    await dbConnect();
+
+    // Get withdrawal threshold from settings
+    let settings = await Settings.findOne();
+    if (!settings) settings = await Settings.create({});
+    const minWithdrawal = settings.withdrawalThreshold || 50;
+
+    if (amount < minWithdrawal) {
       return NextResponse.json(
-        { error: 'Minimum withdrawal amount is $50' },
+        { error: `Minimum withdrawal amount is $${minWithdrawal}` },
         { status: 400 }
       );
     }
-
-    await dbConnect();
 
     // Get the user
     const user = await User.findOne({ email: session.user.email });

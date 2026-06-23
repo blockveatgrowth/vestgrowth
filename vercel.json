@@ -1,8 +1,12 @@
 {
   "crons": [
     {
+      "path": "/api/cron/daily-trade",
+      "schedule": "0 0 * * *"
+    },
+    {
       "path": "/api/admin/increments/process",
-      "schedule": "40 23 * * *"
+      "schedule": "30 0 * * *"
     }
   ]
-} 
+}

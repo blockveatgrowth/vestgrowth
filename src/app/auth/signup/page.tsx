@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 
 function SignUpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { status } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -19,6 +21,13 @@ function SignUpContent() {
     confirmPassword: "",
     referralCode: "",
   });
+
+  // If already authenticated, redirect to dashboard
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace("/dashboard");
+    }
+  }, [status, router]);
 
   // Get referral code from URL if present
   useEffect(() => {

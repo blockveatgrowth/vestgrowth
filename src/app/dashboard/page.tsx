@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { BalanceOverview } from '@/components/dashboard/BalanceOverview';
 import { TransactionHistory } from '@/components/dashboard/TransactionHistory';
 import IncrementHistory from '@/components/dashboard/IncrementHistory';
+import DailyTradeCard from '@/components/dashboard/DailyTradeCard';
 import { useToast } from '@/components/ui/use-toast';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Loader2 } from 'lucide-react';
@@ -166,6 +167,11 @@ export default function DashboardPage() {
               onPageChange={handlePageChange}
               onFilterChange={handleFilterChange}
             />
+          </div>
+
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Live Trade Results</h2>
+            <DailyTradeCard />
           </div>
 
           <div>
