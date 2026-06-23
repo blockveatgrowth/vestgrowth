@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
 // This route is called by Vercel Cron Jobs daily at midnight UTC

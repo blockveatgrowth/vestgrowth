@@ -1,16 +1,5 @@
 import mongoose, { ConnectOptions } from 'mongoose';
 
-// Get MongoDB URI from environment or use a fallback for development
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    'Please define the MONGODB_URI environment variable inside .env'
-  );
-}
-
-const uri: string = MONGODB_URI;
-
 // Cached connection
 const cached: {
   conn: typeof mongoose | null;
@@ -21,6 +10,14 @@ const cached: {
 };
 
 async function connectDB() {
+  // Get MongoDB URI at runtime (not at module load time to avoid build errors)
+  const MONGODB_URI = process.env.MONGODB_URI;
+  if (!MONGODB_URI) {
+    throw new Error(
+      'Please define the MONGODB_URI environment variable inside .env'
+    );
+  }
+
   // If we have a cached connection, return it
   if (cached.conn) {
     return cached.conn;
@@ -54,7 +51,7 @@ async function connectDB() {
   console.log('Connecting to MongoDB...');
   
   try {
-    cached.promise = mongoose.connect(uri, opts);
+    cached.promise = mongoose.connect(MONGODB_URI, opts);
     cached.conn = await cached.promise;
     console.log('Successfully connected to MongoDB');
     return cached.conn;

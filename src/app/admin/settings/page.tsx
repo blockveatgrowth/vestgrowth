@@ -90,14 +90,14 @@ export default function AdminSettingsPage() {
   const update = (path: string, value: string | number | boolean) => {
     if (!settings) return;
     const keys = path.split(".");
-    const updated = { ...settings } as Record<string, unknown>;
-    let current = updated;
+    const updated = JSON.parse(JSON.stringify(settings)) as Settings;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let current: Record<string, any> = updated as Record<string, any>;
     for (let i = 0; i < keys.length - 1; i++) {
-      current[keys[i]] = { ...(current[keys[i]] as Record<string, unknown>) };
       current = current[keys[i]] as Record<string, unknown>;
     }
     current[keys[keys.length - 1]] = value;
-    setSettings(updated as Settings);
+    setSettings(updated);
   };
 
   if (loading) {
