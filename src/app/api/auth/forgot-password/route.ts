@@ -1,43 +1,46 @@
 export const dynamic = 'force-dynamic';
+
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import { User } from "@/models/User";
 import crypto from "crypto";
+import { sendPasswordResetEmail } from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
     const { email } = await request.json();
 
     if (!email) {
-      return new NextResponse("Email is required", { status: 400 });
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
     await connectDB();
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
 
-    // Find user by email
-    const user = await User.findOne({ email });
-
+    // Always return success to prevent email enumeration
     if (!user) {
-      return new NextResponse("No account found with this email", { status: 404 });
+      return NextResponse.json({ message: "If that email exists, a reset link has been sent." });
     }
 
-    // Generate reset token
+    // Generate secure reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
 
-    // Save reset token to user
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = resetTokenExpiry;
+    user.resetToken = hashedToken;
+    user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await user.save();
 
-    // Return the reset token and URL (for development purposes only)
-    return NextResponse.json({
-      message: "Password reset token generated successfully",
-      resetToken,
-      resetUrl: `/auth/reset-password/${resetToken}`,
-    });
+    // Send real email via Gmail SMTP
+    try {
+      await sendPasswordResetEmail(user.email, user.name, resetToken);
+    } catch (emailError) {
+      console.error("Email send error:", emailError);
+      // Don't fail the request if email fails — log it
+    }
+
+    return NextResponse.json({ message: "If that email exists, a reset link has been sent." });
   } catch (error) {
     console.error("Forgot password error:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-} 
+}

@@ -4,8 +4,10 @@ import crypto from 'crypto';
 export interface UserDocument extends mongoose.Document {
   name: string;
   email: string;
-  password: string;
+  password?: string;
   role: "admin" | "user";
+  googleId?: string;
+  profileImage?: string;
   referralCode: string;
   referredBy?: mongoose.Types.ObjectId;
   referralCount: number;
@@ -32,7 +34,14 @@ const userSchema = new mongoose.Schema<UserDocument>(
     },
     password: {
       type: String,
-      required: true,
+      required: false,
+    },
+    googleId: {
+      type: String,
+      sparse: true,
+    },
+    profileImage: {
+      type: String,
     },
     role: {
       type: String,
