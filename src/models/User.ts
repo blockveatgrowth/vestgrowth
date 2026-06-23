@@ -17,6 +17,8 @@ export interface UserDocument extends mongoose.Document {
   avatar: string;
   resetToken: string;
   resetTokenExpiry: Date;
+  magicToken?: string;
+  magicTokenExpiry?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -82,6 +84,12 @@ const userSchema = new mongoose.Schema<UserDocument>(
       type: String,
     },
     resetTokenExpiry: {
+      type: Date,
+    },
+    magicToken: {
+      type: String,
+    },
+    magicTokenExpiry: {
       type: Date,
     },
     createdAt: {

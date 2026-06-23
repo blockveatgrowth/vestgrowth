@@ -7,6 +7,7 @@ import MainLayout from "@/components/layout/MainLayout";
 import { PlansSection } from "@/components/home/PlansSection";
 import { AlgorithmSection } from "@/components/home/AlgorithmSection";
 import { InvestmentJourneySection } from "@/components/home/InvestmentJourneySection";
+import { TradingChartSection } from "@/components/home/TradingChartSection";
 
 function useScrollReveal() {
   useEffect(() => {
@@ -321,6 +322,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ============ TRADING CHART (SCROLL-DRIVEN 3D) ============ */}
+      <TradingChartSection />
 
       {/* ============ FEATURES ============ */}
       <section className="py-20 md:py-24">

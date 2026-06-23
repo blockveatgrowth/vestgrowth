@@ -38,7 +38,7 @@ export async function GET() {
       .filter(tx => tx.type === "profit" || tx.type === "commission")
       .reduce((sum, tx) => sum + tx.amount, 0);
 
-    // Prepare response data
+    // Prepare response data - use profileImage first, fall back to avatar for legacy
     const profileData = {
       name: user.name,
       email: user.email,
@@ -47,7 +47,8 @@ export async function GET() {
       balance: user.balance,
       totalDeposits,
       totalEarnings,
-      avatar: user.avatar,
+      avatar: user.profileImage || user.avatar || null,
+      referralCode: user.referralCode || null,
     };
 
     return NextResponse.json(profileData);
@@ -98,7 +99,7 @@ export async function PATCH(request: Request) {
     }
 
     // Update user data
-    const updates: any = {};
+    const updates: Record<string, unknown> = {};
     if (name) updates.name = name;
     if (email) updates.email = email;
     if (newPassword) {
@@ -113,4 +114,4 @@ export async function PATCH(request: Request) {
     console.error("Error updating user profile:", error);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
-} 
+}
